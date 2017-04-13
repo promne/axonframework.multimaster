@@ -1,0 +1,29 @@
+---
+- name: Add Mongo packages repo
+  apt_key:
+    id: 0C49F3730359A14518585931BC711F9BA15703C6
+    keyserver: keyserver.ubuntu.com
+- name: add apt repository
+  apt_repository:
+    repo: deb http://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/{{ mongodb_version }} multiverse
+    state: present
+- name: install packages
+  apt:
+    pkg: mongodb-org
+    allow_unauthenticated: true
+    state: present
+- name: set mongodb config
+  template:
+    src: mongod.conf.j2
+    dest: /etc/mongod.conf
+  register: mongod
+- name: start mongod service
+  service:
+    name: mongod
+    state: started
+  when: not mongod.changed
+- name: restart mongod service
+  service:
+    name: mongod
+    state: restarted
+  when: mongod.changed

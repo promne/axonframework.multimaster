@@ -1,0 +1,4 @@
+---
+mongodb_version: 3.4
+mongodb_interfaces: ["127.0.0.1"]
+mongodb_port: 27017
