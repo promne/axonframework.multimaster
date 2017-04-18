@@ -13,3 +13,8 @@ systemLog:
 net:
   port: {{ mongodb_port }}
   bindIp: {{ mongodb_interfaces }}
+  
+{% if mongodb_replication_set is defined -%}
+replication:
+  replSetName: "{{mongodb_replication_set}}"
+{%- endif %}

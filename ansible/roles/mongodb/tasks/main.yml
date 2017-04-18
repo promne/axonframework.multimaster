@@ -26,4 +26,5 @@
   service:
     name: mongod
     state: restarted
+    enabled: yes
   when: mongod.changed

@@ -1,7 +1,33 @@
 ---
 - hosts: mongodb
+  become: yes
   vars:
     mongodb_version: 3.4
   roles:
     - role: mongodb
       mongodb_interfaces: 0.0.0.0
+      mongodb_replication_set: "{{ replica_set_name }}"
+
+- hosts: mongodb_leader
+  become: yes
+  vars:
+    mongodb_master_ip: "{{ ansible_all_ipv4_addresses  | select('match','192.*') | first }}"
+    mongodb_hosts_count: "{{ groups['all'] | length }}"
+    mongodb_hosts: "{{ lookup('sequence', 'start=101 count=' + mongodb_hosts_count + ' format=192.168.56.%d', wantlist=True) }}"
+  tasks:
+  - name: Copy the initialization script to tmp
+    copy:
+      content: |
+        printjson(rs.initiate({_id : "{{ replica_set_name }}", members: [ { _id : 0, host : "{{ mongodb_master_ip }}", priority: 2 }] }))
+        sleep(13000)
+        
+        {% for host in mongodb_hosts %}
+        printjson(rs.add("{{ host }}"))
+        sleep(8000)
+        {% endfor %}
+        printjson(rs.status())
+      dest: /tmp/init_replication.js
+    
+  - name: Execute the initialization script and add all replicants
+    shell: mongo /tmp/init_replication.js              
+  
