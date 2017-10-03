@@ -16,11 +16,22 @@
 		<maven.compiler.source>1.8</maven.compiler.source>
 		<maven.compiler.target>1.8</maven.compiler.target>
 
-		<axon.version>3.0.3</axon.version>
+		<axon.version>3.0.6</axon.version>
 		
 	</properties>
 
 	<dependencies>
+		<!-- CDI -->
+		<dependency>
+		    <groupId>javax.enterprise</groupId>
+		    <artifactId>cdi-api</artifactId>
+		    <version>2.0</version>
+		</dependency>		
+		<dependency>
+		   <groupId>org.jboss.weld.se</groupId>
+		   <artifactId>weld-se-shaded</artifactId>
+		   <version>3.0.1.Final</version>
+		</dependency>
 		
 		<!-- axon framework -->
 		<dependency>
@@ -44,6 +55,24 @@
             <artifactId>jgroups</artifactId>
             <version>3.6.10.Final</version>
         </dependency>		
+
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-simple</artifactId>
+			<version>1.7.5</version>
+		</dependency>
+		
 		
 	</dependencies>
+	
+	<repositories>
+		<repository>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+			<id>central</id>
+			<name>bintray</name>
+			<url>http://jcenter.bintray.com</url>
+		</repository>
+	</repositories>	
 </project>
