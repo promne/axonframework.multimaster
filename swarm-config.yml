@@ -1,0 +1,8 @@
+---
+swarm:
+  logging:
+    loggers:
+      georgeh.test.axonframework.multimaster:
+        level: DEBUG
+axon.mongo.ip: "10.128.75.101"        
+      

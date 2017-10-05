@@ -1,21 +1,25 @@
-package georgeh.test.axonframework.multimaster.cdi;
+package georgeh.test.axonframework.multimaster;
 
-import java.util.function.Function;
+import java.io.ObjectStreamClass;
+import java.util.Map;
+import java.util.Optional;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.Produces;
+import javax.enterprise.inject.spi.CDI;
 import javax.inject.Inject;
 
 import org.axonframework.commandhandling.CommandBus;
 import org.axonframework.commandhandling.SimpleCommandBus;
 import org.axonframework.commandhandling.distributed.DistributedCommandBus;
 import org.axonframework.commandhandling.gateway.CommandGateway;
+import org.axonframework.common.annotation.AnnotationUtils;
 import org.axonframework.config.Configuration;
 import org.axonframework.config.Configurer;
 import org.axonframework.config.DefaultConfigurer;
 import org.axonframework.config.EventHandlingConfiguration;
+import org.axonframework.config.ProcessingGroup;
 import org.axonframework.eventhandling.tokenstore.TokenStore;
-import org.axonframework.eventhandling.tokenstore.inmemory.InMemoryTokenStore;
 import org.axonframework.eventsourcing.eventstore.EmbeddedEventStore;
 import org.axonframework.eventsourcing.eventstore.EventStore;
 import org.axonframework.jgroups.commandhandling.JGroupsConnector;
@@ -23,6 +27,7 @@ import org.axonframework.messaging.MetaData;
 import org.axonframework.mongo.eventsourcing.eventstore.DefaultMongoTemplate;
 import org.axonframework.mongo.eventsourcing.eventstore.MongoEventStorageEngine;
 import org.axonframework.mongo.eventsourcing.eventstore.MongoTemplate;
+import org.axonframework.mongo.eventsourcing.eventstore.documentperevent.DocumentPerEventStorageStrategy;
 import org.axonframework.mongo.eventsourcing.tokenstore.MongoTokenStore;
 import org.axonframework.serialization.Serializer;
 import org.axonframework.serialization.xml.XStreamSerializer;
@@ -33,6 +38,9 @@ import com.mongodb.MongoClient;
 
 import georgeh.test.axonframework.multimaster.domain.Counter;
 import georgeh.test.axonframework.multimaster.query.CounterEventHandler;
+import georgeh.test.axonframework.multimaster.query.ProcessingGroupTarget;
+import georgeh.test.axonframework.multimaster.query.SecondHandler;
+import georgeh.test.axonframework.multimaster.util.ClassHashUtils;
 
 @ApplicationScoped
 public class AxonConfiguration {
@@ -40,7 +48,6 @@ public class AxonConfiguration {
     @Inject
     private Logger log;
     
-    private String DATABASE_NAME = "axonframework";
     private Serializer SERIALIZER = new XStreamSerializer();
     
     public Configurer getConfigurer() {
@@ -56,8 +63,21 @@ public class AxonConfiguration {
 //        result.registerComponent(TokenStore.class, c -> new InMemoryTokenStore());
         
         EventHandlingConfiguration ehConfiguration = new EventHandlingConfiguration()
+            .byDefaultAssignTo(o -> {
+                Class<?> handlerType = o.getClass();
+                // generate unique based on handler & the entity it handles 
+                // alternative - serial version uid, but that doesn't include method bodies - ObjectStreamClass.lookup(c).getSerialVersionUID()
+                String handlerId = String.format("%s-%s", handlerType.getCanonicalName(), ClassHashUtils.getHash(handlerType));
+                
+                Optional<String> targetEntityId = Optional.ofNullable(handlerType.getAnnotation(ProcessingGroupTarget.class))
+                    .map(ProcessingGroupTarget::value).map(c -> String.format("%s-%s", c.getCanonicalName(), ClassHashUtils.getHash(c)));
+               
+                return targetEntityId.map(entityId -> handlerId+"-"+entityId).orElse(handlerId);
+                
+            })
             .usingTrackingProcessors()
-            .registerEventHandler(c -> new CounterEventHandler());
+            .registerEventHandler(c -> new CounterEventHandler())
+            .registerEventHandler(c -> new SecondHandler());
         
         result.registerModule(ehConfiguration);
 
@@ -70,9 +90,7 @@ public class AxonConfiguration {
     @Produces
     @ApplicationScoped
     public Configuration getConfiguration() {
-        Configuration configuration = getConfigurer().buildConfiguration();
-        configuration.start();
-        return configuration;
+        return getConfigurer().start();
     }
     
     @Produces
@@ -91,28 +109,29 @@ public class AxonConfiguration {
     }
 
     
+    
     public TokenStore defaultMongoTokenStore() {
-        return new MongoTokenStore(new org.axonframework.mongo.eventsourcing.tokenstore.DefaultMongoTemplate(new MongoClient("10.128.75.101"), DATABASE_NAME, "trackingTokens"), SERIALIZER);
+        MongoClient mongoClient = CDI.current().select(MongoClient.class).get();
+        return new MongoTokenStore(new org.axonframework.mongo.eventsourcing.tokenstore.DefaultMongoTemplate(mongoClient, MongoConfiguration.DATABASE_NAME, "trackingTokens"), SERIALIZER);
     }
     
     
     public EventStore defaultMongoEventStore() {
-        MongoClient mongoClient = new MongoClient("10.128.75.101");
+        MongoClient mongoClient = CDI.current().select(MongoClient.class).get();
         
-        String snapshotEventsCollectionName = "snapshotevents";
-        String domainEventsCollectionName = "domainevents";
+        MongoTemplate mongoTemplate = new DefaultMongoTemplate(mongoClient, MongoConfiguration.DATABASE_NAME, "domainevents",
+                "snapshotevents");
+        MongoEventStorageEngine storageEngine = new MongoEventStorageEngine(SERIALIZER, null, mongoTemplate, new DocumentPerEventStorageStrategy());
         
-        MongoTemplate mongoTemplate = new DefaultMongoTemplate(mongoClient, DATABASE_NAME, domainEventsCollectionName,
-                snapshotEventsCollectionName);
-        return new EmbeddedEventStore((new MongoEventStorageEngine(mongoTemplate)));
+        
+        return new EmbeddedEventStore(storageEngine);
     }       
-    
     
     private CommandBus createDistributedCommandBus() {
         SimpleCommandBus localSegment = new SimpleCommandBus();
         
         try (JChannel channel = new JChannel()) {
-            JGroupsConnector connector = new JGroupsConnector(localSegment, channel, "myCommandBus", new XStreamSerializer());
+            JGroupsConnector connector = new JGroupsConnector(localSegment, channel, "myCommandBus", SERIALIZER);
             
             localSegment.registerDispatchInterceptor(messages -> (t,m) -> m.andMetaData(MetaData.with("processor", connector.getNodeName())));
             

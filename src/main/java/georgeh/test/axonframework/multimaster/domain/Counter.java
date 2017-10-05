@@ -45,10 +45,11 @@ public class Counter {
 	}
 	
 	@CommandHandler
-	public void increase(CounterIncreaseCommand cmd, MetaData metaData) {
+	public int increase(CounterIncreaseCommand cmd, MetaData metaData) {
 		LOG.debug("CounterIncreaseCommand received for {}", cmd.getId());
 		counter++;
 		AggregateLifecycle.apply(new CounterValueSetEvent(cmd.getId(), counter), metaData);
+		return counter;
 	}
 	
 	@EventSourcingHandler

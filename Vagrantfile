@@ -23,13 +23,16 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 	config.vm.box_check_update = false  
 
 	config.vbguest.auto_update = false		
-		
+	
+	config.proxy.http     = "http://jos-repo-server.datacom.co.nz:3128"
+	config.proxy.https    = "http://jos-repo-server.datacom.co.nz:3128"
+	config.proxy.no_proxy = "localhost,127.0.0.1"		
 		
 	#vagrant-cachier
 	config.cache.auto_detect = true
 	config.cache.scope = :box	  
 
-	nodes_count = 2
+	nodes_count = 1
   
 	(1..nodes_count).each do |i|  
 		config.vm.define "axonmulti-#{i}", primary: true  do |node|

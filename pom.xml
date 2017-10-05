@@ -5,10 +5,9 @@
 	<groupId>georgeh.test</groupId>
 	<artifactId>axonframework.multimaster</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<packaging>jar</packaging>
+	<packaging>war</packaging>
 
 	<name>axonframework.multimaster</name>
-	<url>http://maven.apache.org</url>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -17,37 +16,51 @@
 		<maven.compiler.target>1.8</maven.compiler.target>
 
 		<axon.version>3.0.6</axon.version>
-		
+
+		<failOnMissingWebXml>false</failOnMissingWebXml>
+
+		<version.wildfly.swarm>2017.9.5</version.wildfly.swarm>
 	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.wildfly.swarm</groupId>
+				<artifactId>bom-all</artifactId>
+				<version>${version.wildfly.swarm}</version>
+				<scope>import</scope>
+				<type>pom</type>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 
 	<build>
 		<plugins>
 			<plugin>
-			    <groupId>com.github.chrisdchristo</groupId>
-			    <artifactId>capsule-maven-plugin</artifactId>
-			    <version>1.4.3</version>
-			    <executions>
-			        <execution>
-			            <goals>
-			                <goal>build</goal>
-			            </goals>
-			            <configuration>
-			                <appClass>ws.ament.hammock.Bootstrap</appClass>
-			                <type>fat</type>
-			            </configuration>
-			        </execution>
-			    </executions>
+				<groupId>org.wildfly.swarm</groupId>
+				<artifactId>wildfly-swarm-plugin</artifactId>
+				<version>${version.wildfly.swarm}</version>
+				<configuration>
+					<bundleDependencies>false</bundleDependencies>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>package</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
 
 	<dependencies>
 		<dependency>
-		    <groupId>ws.ament.hammock</groupId>
-		    <artifactId>dist-microprofile</artifactId>
-		    <version>2.0</version>
+			<groupId>org.wildfly.swarm</groupId>
+			<artifactId>microprofile</artifactId>
 		</dependency>
-		
+
 		<!-- axon framework -->
 		<dependency>
 			<groupId>org.axonframework</groupId>
@@ -60,34 +73,34 @@
 			<version>${axon.version}</version>
 		</dependency>
 		<dependency>
-		   <groupId>org.axonframework</groupId>
-		   <artifactId>axon-distributed-commandbus-jgroups</artifactId>
+			<groupId>org.axonframework</groupId>
+			<artifactId>axon-distributed-commandbus-jgroups</artifactId>
 			<version>${axon.version}</version>
 		</dependency>
-		
-        <dependency>
-            <groupId>org.jgroups</groupId>
-            <artifactId>jgroups</artifactId>
-            <version>3.6.10.Final</version>
-        </dependency>		
 
 		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-simple</artifactId>
-			<version>1.7.5</version>
+			<groupId>org.jgroups</groupId>
+			<artifactId>jgroups</artifactId>
+			<version>3.6.10.Final</version>
+		</dependency>
+
+
+	    <dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-mongodb</artifactId>
+			<version>1.10.7.RELEASE</version>
+		</dependency>
+		<dependency>
+		   <groupId>org.springframework</groupId>
+		   <artifactId>spring-context-support</artifactId>
+		   <version>4.3.11.RELEASE</version>
 		</dependency>
 		
-		
+		<dependency>
+		   <groupId>commons-codec</groupId>
+		   <artifactId>commons-codec</artifactId>
+		   <version>1.10</version>
+		</dependency>
 	</dependencies>
-	
-	<repositories>
-		<repository>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-			<id>central</id>
-			<name>bintray</name>
-			<url>http://jcenter.bintray.com</url>
-		</repository>
-	</repositories>	
+
 </project>
