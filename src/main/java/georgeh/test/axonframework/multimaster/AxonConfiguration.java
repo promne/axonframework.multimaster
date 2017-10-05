@@ -41,6 +41,7 @@ import georgeh.test.axonframework.multimaster.query.CounterEventHandler;
 import georgeh.test.axonframework.multimaster.query.ProcessingGroupTarget;
 import georgeh.test.axonframework.multimaster.query.SecondHandler;
 import georgeh.test.axonframework.multimaster.util.ClassHashUtils;
+import georgeh.test.axonframework.multimaster.util.IdentityNameFactory;
 
 @ApplicationScoped
 public class AxonConfiguration {
@@ -53,7 +54,7 @@ public class AxonConfiguration {
     public Configurer getConfigurer() {
         Configurer result = DefaultConfigurer.defaultConfiguration();
     
-//        result.configureCommandBus(c -> createDistributedCommandBus());
+        result.configureCommandBus(c -> createDistributedCommandBus());
         
         
         result.configureEventStore(c -> defaultMongoEventStore());
@@ -63,19 +64,7 @@ public class AxonConfiguration {
 //        result.registerComponent(TokenStore.class, c -> new InMemoryTokenStore());
         
         EventHandlingConfiguration ehConfiguration = new EventHandlingConfiguration()
-            .byDefaultAssignTo(o -> {
-                Class<?> handlerType = o.getClass();
-                // generate unique based on handler & the entity it handles 
-                // alternative - serial version uid, but that doesn't include method bodies - ObjectStreamClass.lookup(c).getSerialVersionUID()
-                String handlerId = String.format("%s-%s", handlerType.getCanonicalName(), ClassHashUtils.getHash(handlerType));
-                
-                Optional<String> targetEntityId = Optional.ofNullable(handlerType.getAnnotation(ProcessingGroupTarget.class))
-                    .map(ProcessingGroupTarget::value).map(c -> String.format("%s-%s", c.getCanonicalName(), ClassHashUtils.getHash(c)));
-               
-                return targetEntityId.map(entityId -> handlerId+"-"+entityId).orElse(handlerId);
-                
-            })
-            .usingTrackingProcessors()
+            .usingTrackingProcessors().byDefaultAssignTo(o -> IdentityNameFactory.getTrackingTokenId(o.getClass()))
             .registerEventHandler(c -> new CounterEventHandler())
             .registerEventHandler(c -> new SecondHandler());
         
@@ -130,7 +119,8 @@ public class AxonConfiguration {
     private CommandBus createDistributedCommandBus() {
         SimpleCommandBus localSegment = new SimpleCommandBus();
         
-        try (JChannel channel = new JChannel()) {
+        try {
+            JChannel channel = new JChannel();
             JGroupsConnector connector = new JGroupsConnector(localSegment, channel, "myCommandBus", SERIALIZER);
             
             localSegment.registerDispatchInterceptor(messages -> (t,m) -> m.andMetaData(MetaData.with("processor", connector.getNodeName())));

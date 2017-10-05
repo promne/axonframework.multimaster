@@ -2,6 +2,9 @@ package georgeh.test.axonframework.multimaster.query;
 
 import org.springframework.data.annotation.Id;
 
+import georgeh.test.axonframework.multimaster.mongo.DocumentNameParts;
+
+@DocumentNameParts(documentType = Counter.class, handlerType=CounterEventHandler.class)
 public class Counter {
 
     @Id
