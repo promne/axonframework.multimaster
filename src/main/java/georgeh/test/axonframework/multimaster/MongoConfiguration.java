@@ -35,7 +35,7 @@ public class MongoConfiguration {
     @Produces
     @Singleton
     public MongoClient createMongoClient() throws UnknownHostException {
-        String mongoIps = System.getProperty("axon.mongo.ip");
+        String mongoIps = System.getProperty("axon.mongo.ip", "localhost");
         logger.info("Creating connection to mongodb: {}", mongoIps);
         List<ServerAddress> serverAddress = new ArrayList<>();
         for (String addr : mongoIps.split(",")) {
@@ -46,7 +46,7 @@ public class MongoConfiguration {
     
     @Produces
     @Singleton
-    public MongoTemplate createSpringMongoTemplate(MongoClient mongoClient) {
+    public MongoTemplate createSpringMongoTemplate(final MongoClient mongoClient) {
         MongoDbFactory mongoFactory = new SimpleMongoDbFactory(mongoClient, DATABASE_NAME);
         return new MongoTemplate(mongoFactory, getDefaultMongoConverter(mongoFactory));
     }
@@ -55,7 +55,7 @@ public class MongoConfiguration {
      * Inspired by MongoTemplate#getDefaultMongoConverter
      * The mapping context is replaced by custom one.
      */
-    private static final MongoConverter getDefaultMongoConverter(MongoDbFactory factory) {
+    private static final MongoConverter getDefaultMongoConverter(final MongoDbFactory factory) {
         DbRefResolver dbRefResolver = new DefaultDbRefResolver(factory);
         CustomConversions conversions = new CustomConversions(Collections.emptyList());
 

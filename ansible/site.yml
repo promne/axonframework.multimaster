@@ -1,4 +1,58 @@
 ---
+- hosts: all
+  gather_facts: no
+  tasks:
+  - name: Install python
+    raw: sudo bash -c "test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)"
+    changed_when: no
+  
+- hosts: builder
+  tasks:
+  - name: Install packages
+    become: yes
+    package:
+      name: "{{ item }}"
+    with_items:
+    - openjdk-8-jdk-headless
+    - maven
+  
+  - name: Generate custom maven settings file
+    copy:
+      dest: /tmp/workernode-maven-settings.xml
+      content: |
+        <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                             http://maven.apache.org/xsd/settings-1.0.0.xsd">
+           
+          <proxies>
+          {% if ansible_env.http_proxy is defined %}
+            <proxy>
+                <id>my-proxy-http</id>
+                <active>true</active>
+                <protocol>http</protocol>
+                <host>{{ ansible_env.http_proxy | urlsplit('hostname') }}</host>
+                <port>{{ ansible_env.http_proxy | urlsplit('port') }}</port>
+             </proxy>
+          {% endif %} 
+          {% if ansible_env.https_proxy is defined %}
+            <proxy>
+                <id>my-proxy-https</id>
+                <active>true</active>
+                <protocol>https</protocol>
+                <host>{{ ansible_env.https_proxy | urlsplit('hostname') }}</host>
+                <port>{{ ansible_env.https_proxy | urlsplit('port') }}</port>
+             </proxy>
+          {% endif %} 
+          </proxies>
+        </settings>
+            
+  - name: Compile deployable
+    shell: >
+      mvn clean install --settings /tmp/workernode-maven-settings.xml -Dcustom.build.directory=/tmp/axonmulti-build-tmp
+    args:
+      chdir: /vagrant 
+      
 - hosts: mongodb
   become: yes
   vars:
@@ -29,5 +83,101 @@
       dest: /tmp/init_replication.js
     
   - name: Execute the initialization script and add all replicants
-    shell: mongo /tmp/init_replication.js              
+    shell: mongo /tmp/init_replication.js
   
+- hosts: application
+  tasks:
+  - name: Install java
+    become: yes
+    package:
+      name: openjdk-8-jre-headless
+
+  - name: Create axonmulti group
+    become: yes
+    group:
+      name: axonmulti
+      state: present
+        
+  - name: Create axonmulti user
+    become: yes
+    user:
+      name: axonmulti
+      group: axonmulti
+      home: /opt/axonmulti
+      system: yes
+      
+  - name: Copy deployable
+    become: yes    
+    become_user: axonmulti
+    copy:
+      src: /tmp/axonmulti-build-tmp/axonframework.multimaster-swarm.jar
+      dest: /opt/axonmulti
+    register: deployable_res
+      
+  - name: Setup swarm configuration
+    become: yes    
+    become_user: axonmulti
+    copy:
+      dest: /opt/axonmulti/swarm-config.yml
+      content: |
+        swarm:
+          logging:
+            file-handlers:
+              FILE:
+                level: DEBUG
+                file:
+                  path: axonmulti-server.log
+                formatter: "%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%c] (%t) %s%e%n"
+            console-handlers:
+              CONSOLE:
+                level: ERROR                    
+            loggers:
+              georgeh.test.axonframework.multimaster:
+                level: DEBUG
+            root-logger:
+              handlers:
+                - FILE
+                - CONSOLE                
+                
+    register: configuration_res
+      
+  - name: Create axonmulti service
+    become: yes    
+    copy:
+      dest: /lib/systemd/system/axonmulti.service 
+      mode: '0644'
+      content: |
+        [Unit]
+        Description=Axonmulti
+        After=network.target
+        
+        [Service]
+        WorkingDirectory=/opt/axonmulti
+        SyslogIdentifier=Axonmulti
+        ExecStart=/bin/sh -c "exec java -jar axonframework.multimaster-swarm.jar -s swarm-config.yml"
+        User=axonmulti
+        Type=simple
+        
+        [Install]
+        WantedBy=multi-user.target
+    register: systemd_config_res
+  
+  - name: Reload systemctl
+    become: yes    
+    command: systemctl daemon-reload
+    when: systemd_config_res | changed
+    
+  - name: Enable and start axonmulti.service
+    become: yes    
+    service:
+      name: axonmulti
+      enabled: yes
+      state: started
+      
+  - name: Restart axonmulti.service      
+    become: yes    
+    service:
+      name: axonmulti
+      state: restarted
+    when: systemd_config_res | changed or deployable_res | changed         
+     

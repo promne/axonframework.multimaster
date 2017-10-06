@@ -20,6 +20,7 @@
 		<failOnMissingWebXml>false</failOnMissingWebXml>
 
 		<version.wildfly.swarm>2017.9.5</version.wildfly.swarm>
+		<custom.build.directory>${project.basedir}/target</custom.build.directory>
 	</properties>
 
 	<dependencyManagement>
@@ -36,13 +37,15 @@
 
 
 	<build>
+		<finalName>${project.artifactId}</finalName>
+		<directory>${custom.build.directory}</directory>
 		<plugins>
 			<plugin>
 				<groupId>org.wildfly.swarm</groupId>
 				<artifactId>wildfly-swarm-plugin</artifactId>
 				<version>${version.wildfly.swarm}</version>
 				<configuration>
-					<bundleDependencies>false</bundleDependencies>
+					<bundleDependencies>true</bundleDependencies>
 				</configuration>
 				<executions>
 					<execution>
