@@ -21,53 +21,57 @@ import org.springframework.data.mongodb.core.convert.MongoConverter;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoClientOptions.Builder;
 import com.mongodb.ServerAddress;
 
 import georgeh.test.axonframework.multimaster.mongo.CustomMongoMappingContext;
 
 public class MongoConfiguration {
 
-    public static final String DATABASE_NAME = "axonmutlimaster";
-    
-    @Inject
-    private Logger logger;
-    
-    @Produces
-    @Singleton
-    public MongoClient createMongoClient() throws UnknownHostException {
-        String mongoIps = System.getProperty("axon.mongo.ip", "localhost");
-        logger.info("Creating connection to mongodb: {}", mongoIps);
-        List<ServerAddress> serverAddress = new ArrayList<>();
-        for (String addr : mongoIps.split(",")) {
-            serverAddress.add(new ServerAddress(addr));
-        }
-        return new MongoClient(serverAddress);
-    }
-    
-    @Produces
-    @Singleton
-    public MongoTemplate createSpringMongoTemplate(final MongoClient mongoClient) {
-        MongoDbFactory mongoFactory = new SimpleMongoDbFactory(mongoClient, DATABASE_NAME);
-        return new MongoTemplate(mongoFactory, getDefaultMongoConverter(mongoFactory));
-    }
+	public static final String DATABASE_NAME = "axonmutlimaster";
 
-    /*
-     * Inspired by MongoTemplate#getDefaultMongoConverter
-     * The mapping context is replaced by custom one.
-     */
-    private static final MongoConverter getDefaultMongoConverter(final MongoDbFactory factory) {
-        DbRefResolver dbRefResolver = new DefaultDbRefResolver(factory);
-        CustomConversions conversions = new CustomConversions(Collections.emptyList());
+	@Inject
+	private Logger logger;
 
-        MongoMappingContext mappingContext = new CustomMongoMappingContext();
-        mappingContext.setSimpleTypeHolder(conversions.getSimpleTypeHolder());
-        mappingContext.afterPropertiesSet();
+	@Produces
+	@Singleton
+	public MongoClient createMongoClient() throws UnknownHostException {
+		String mongoIps = System.getProperty("axon.mongo.ip", "localhost");
+		logger.info("Creating connection to mongodb: {}", mongoIps);
+		List<ServerAddress> serverAddress = new ArrayList<>();
+		for (String addr : mongoIps.split(",")) {
+			serverAddress.add(new ServerAddress(addr));
+		}
+		Builder clientOptions = new MongoClientOptions.Builder().socketTimeout(5000);
 
-        MappingMongoConverter converter = new MappingMongoConverter(dbRefResolver, mappingContext);
-        converter.setCustomConversions(conversions);
-        converter.afterPropertiesSet();
+		return new MongoClient(serverAddress, clientOptions.build());
+	}
 
-        return converter;
-    }    
-    
+	@Produces
+	@Singleton
+	public MongoTemplate createSpringMongoTemplate(final MongoClient mongoClient) {
+		MongoDbFactory mongoFactory = new SimpleMongoDbFactory(mongoClient, DATABASE_NAME);
+		return new MongoTemplate(mongoFactory, getDefaultMongoConverter(mongoFactory));
+	}
+
+	/*
+	 * Inspired by MongoTemplate#getDefaultMongoConverter The mapping context is
+	 * replaced by custom one.
+	 */
+	private static final MongoConverter getDefaultMongoConverter(final MongoDbFactory factory) {
+		DbRefResolver dbRefResolver = new DefaultDbRefResolver(factory);
+		CustomConversions conversions = new CustomConversions(Collections.emptyList());
+
+		MongoMappingContext mappingContext = new CustomMongoMappingContext();
+		mappingContext.setSimpleTypeHolder(conversions.getSimpleTypeHolder());
+		mappingContext.afterPropertiesSet();
+
+		MappingMongoConverter converter = new MappingMongoConverter(dbRefResolver, mappingContext);
+		converter.setCustomConversions(conversions);
+		converter.afterPropertiesSet();
+
+		return converter;
+	}
+
 }
